@@ -87,6 +87,72 @@ Sono solo rumore nel log che rende più difficile vedere warning veri.
 **Versione** — formato obbligatorio: `19.0.x.x.x`
 **License** — sempre presente: `LGPL-3`, `OPL-1`, o `AGPL-3`
 
+---
+
+## Custom extensions — message_post HTML rendering
+*Added: 2026-04-29*
+
+### Markup() obbligatorio per HTML nel chatter — regola critica
+
+**Sintomo:** il chatter mostra il testo con tag HTML visibili come testo grezzo
+(`<strong>Titolo</strong>` invece di **Titolo**).
+
+**Causa:** Odoo escapa automaticamente le stringhe Python normali nel `body`
+di `message_post()`. Solo gli oggetti `Markup` vengono renderizzati come HTML.
+
+```python
+# ✅ CORRETTO — HTML renderizzato correttamente nel chatter
+from markupsafe import Markup
+
+task.message_post(
+    body=Markup(
+        '<p><strong>Titolo</strong></p>'
+        '<p>Testo con <em>%s</em> e <a href="%s">link</a></p>'
+    ) % (valore_variabile, url),
+    subtype_xmlid='mail.mt_comment',
+    partner_ids=partner_ids,
+)
+
+# ❌ SBAGLIATO — mostra tag HTML come testo grezzo
+task.message_post(
+    body='<strong>Titolo</strong> — testo',  # stringa normale
+    ...
+)
+
+# ❌ SBAGLIATO — anche con f-string
+task.message_post(
+    body=f'<strong>{titolo}</strong>',  # f-string non è Markup
+    ...
+)
+```
+
+**Pattern consolidato da astro_event_stages (verificato in produzione):**
+
+```python
+from markupsafe import Markup
+
+# Blocchi HTML statici → stringa Markup diretta
+body = Markup('<p><strong>GO confermato.</strong> Evento all\'orario previsto.</p>')
+
+# Con variabili → Markup() con % interpolation
+body = Markup(
+    '<p><strong>%s</strong></p>'
+    '<ul>'
+    '<li>Valore: <strong>%s</strong></li>'
+    '</ul>'
+) % (titolo, valore)
+
+# Con parti condizionali
+parte_opzionale = Markup('<li>Extra: %s</li>') % extra if extra else Markup('')
+body = Markup('<p>Testo</p><ul>%s</ul>') % parte_opzionale
+```
+
+**Regole:**
+- Importare sempre `from markupsafe import Markup` a inizio file
+- Mai usare f-string con HTML — usare `Markup(...) % (vars,)`
+- Per parti condizionali: usare `Markup('')` come fallback, non stringa vuota `''`
+- Le emoji Unicode dirette (🎯 📋) funzionano in Markup senza encoding HTML
+
 ### Riferimenti Astronomitaly-specifici
 
 Pattern specifici del nostro setup non coperti dalle guide generali:
@@ -98,4 +164,4 @@ Casi di crisi documentati (viste orfane, noupdate, psycopg2, portal multisite):
 
 ---
 *Source: unclecatvn/agent-skills — imported 2026-04-29*
-*Updated: 2026-04-29 — added manifest description/RST best practices*
+*Updated: 2026-04-29 — added Markup() best practice for message_post HTML*
