@@ -3,6 +3,7 @@ name: odoo-19
 description: Odoo 19 development knowledge base with 18 specialized guides covering Actions, Controllers, Data files, API Decorators, Field types, Manifest, Migration, Mixins, Model Methods, OWL, Performance, Reports, Security, Testing, Transactions, Translation, Views & XML. Use when writing, reviewing, or debugging any Odoo 19 Python or XML code.
 source: unclecatvn/agent-skills
 imported: 2026-04-29
+custom_sections: true
 ---
 
 # Odoo 19 Skill — Master Index
@@ -33,14 +34,68 @@ Full guides available at: github.com/unclecatvn/agent-skills/skills/odoo-19.0/re
 | Translation | odoo-19-translation-guide.md | Adding translations, localization, i18n |
 | Views & XML | odoo-19-view-guide.md | Writing XML views, actions, menus, QWeb templates |
 
-## Astronomitaly-specific extensions
+---
+
+<!-- CUSTOM:START — non rimuovere questo marcatore -->
+## Custom extensions — Odoo 19 manifest best practices
+*Added: 2026-04-29*
+
+### `description` vs `summary` — regola definitiva
+
+In Odoo 19 il manifest ha due campi testuali distinti:
+
+| Campo | Dove appare | Formato richiesto |
+|---|---|---|
+| `summary` | UI Odoo → lista App, card modulo backend | Testo semplice |
+| `description` | Pagina dettaglio modulo in Settings → Apps | reStructuredText valido |
+
+La `description` appare solo se si clicca sul singolo modulo in Settings → Apps.
+Per moduli interni non distribuiti a terzi ha utilità quasi zero.
+
+**Tre opzioni — tutte valide:**
+
+```python
+# OPZIONE A — consigliata per moduli interni (zero RST warning)
+'summary': 'Breve descrizione visibile nel backend.',
+'description': '',
+
+# OPZIONE B — accettabile se si vuole documentazione in-app
+'summary': 'Breve descrizione visibile nel backend.',
+'description': """
+Descrizione estesa del modulo.
+
+Funzionalità
+------------
+
+* Feature 1
+* Feature 2
+""",
+
+# OPZIONE C — da NON usare (genera RST warning nel log di update_module)
+'description': 'Testo libero senza struttura RST.',
+```
+
+**Regole RST per evitare warning:**
+- Riga vuota prima e dopo ogni lista
+- Titoli sezione con `---` (almeno tanti `-` quanto i caratteri del titolo)
+- Bullet con `*` non `-`
+- Nessun rientro irregolare
+
+**I RST warning non sono bloccanti** — il modulo si carica correttamente.
+Sono solo rumore nel log che rende più difficile vedere warning veri.
+
+**Versione** — formato obbligatorio: `19.0.x.x.x`
+**License** — sempre presente: `LGPL-3`, `OPL-1`, o `AGPL-3`
+
+### Riferimenti Astronomitaly-specifici
 
 Pattern specifici del nostro setup non coperti dalle guide generali:
 → `/opt/odoo19/custom/addons/ODOO19_DEV_NOTES.md` su Hetzner
 
-Casi di crisi documentati:
-→ Viste orfane, noupdate, psycopg2 Unix socket, portal multisite
+Casi di crisi documentati (viste orfane, noupdate, psycopg2, portal multisite):
 → Vedi sezione ERRORI FATALI in ODOO19_DEV_NOTES.md
+<!-- CUSTOM:END -->
 
 ---
 *Source: unclecatvn/agent-skills — imported 2026-04-29*
+*Updated: 2026-04-29 — added manifest description/RST best practices*
