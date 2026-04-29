@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-Checks if upstream skill sources have been updated since we imported them.
-Opens a GitHub Issue if any updates are found.
-NEVER modifies any file — read-only check only.
+Checks if upstream skill sources have new H2 sections not present in our version.
+Uses content-based comparison (not SHA) to avoid false positives from condensed imports.
 
-Protection guarantee:
-- Only reads files, never writes
-- Custom sections (between CUSTOM:START and CUSTOM:END) are shown in the
-  issue so the maintainer knows exactly what to preserve
+Logic:
+- Download upstream file
+- Extract all H2 section headings (## Title)
+- Download our file, extract our H2 headings (excluding CUSTOM sections)
+- If upstream has H2 sections we don't have → real update, open Issue
+- SHA differences alone are ignored (expected: we condense imports)
+
+NEVER modifies any file — read-only check only.
+Custom sections (CUSTOM:START / CUSTOM:END) are always preserved and shown in Issue.
 """
 
 import os
 import re
-import json
+import base64
 import requests
 from datetime import datetime, timezone
 
@@ -31,7 +35,6 @@ HEADERS_REPO = {
 }
 
 # Map: our skill path -> upstream source
-# Format: 'our/path/SKILL.md': ('owner', 'repo', 'upstream/path/SKILL.md')
 SKILL_SOURCES = {
     'L1-foundations/incremental-implementation/SKILL.md': (
         'addyosmani', 'agent-skills', 'skills/incremental-implementation/SKILL.md'
@@ -60,40 +63,52 @@ SKILL_SOURCES = {
 }
 
 
-def get_upstream_sha(owner, repo, path):
-    """Get SHA of file in upstream repo."""
+def get_file_content(owner, repo, path, headers):
+    """Fetch and decode file content from GitHub API."""
     url = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
-    r = requests.get(url, headers=HEADERS, timeout=10)
-    if r.status_code == 200:
-        return r.json().get('sha', '')
-    return None
-
-
-def get_our_sha(path):
-    """Get SHA of file in our repo."""
-    url = f'https://api.github.com/repos/{OWNER}/{REPO}/contents/{path}'
-    r = requests.get(url, headers=HEADERS_REPO, timeout=10)
-    if r.status_code == 200:
-        return r.json().get('sha', '')
-    return None
-
-
-def get_our_custom_sections(path):
-    """Extract custom sections from our skill file."""
-    url = f'https://api.github.com/repos/{OWNER}/{REPO}/contents/{path}'
-    r = requests.get(url, headers=HEADERS_REPO, timeout=10)
+    r = requests.get(url, headers=headers, timeout=15)
     if r.status_code != 200:
-        return ''
-    import base64
-    content = base64.b64decode(r.json().get('content', '')).decode('utf-8')
-    # Extract content between CUSTOM:START and CUSTOM:END
+        return None
+    data = r.json()
+    try:
+        return base64.b64decode(data.get('content', '')).decode('utf-8')
+    except Exception:
+        return None
+
+
+def extract_h2_sections(text):
+    """
+    Extract all H2 headings (## Title) from markdown text.
+    Normalize: lowercase, strip punctuation, collapse spaces.
+    Returns a set of normalized heading strings.
+    """
+    headings = re.findall(r'^##\s+(.+)$', text, re.MULTILINE)
+    normalized = set()
+    for h in headings:
+        # Normalize: lowercase, strip special chars, collapse spaces
+        clean = re.sub(r'[^\w\s]', '', h.lower())
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        normalized.add(clean)
+    return normalized
+
+
+def strip_custom_sections(text):
+    """Remove CUSTOM:START...CUSTOM:END blocks before comparing."""
+    return re.sub(
+        r'<!--\s*CUSTOM:START.*?-->.+?<!--\s*CUSTOM:END\s*-->',
+        '',
+        text,
+        flags=re.DOTALL
+    )
+
+
+def extract_custom_sections(text):
+    """Extract content between CUSTOM:START and CUSTOM:END markers."""
     match = re.search(
         r'<!--\s*CUSTOM:START.*?-->(.+?)<!--\s*CUSTOM:END\s*-->',
-        content, re.DOTALL
+        text, re.DOTALL
     )
-    if match:
-        return match.group(1).strip()
-    return ''
+    return match.group(1).strip() if match else ''
 
 
 def get_existing_update_issue():
@@ -103,25 +118,25 @@ def get_existing_update_issue():
         'state': 'open', 'labels': 'skill-update'
     }, timeout=10)
     if r.status_code == 200:
-        issues = r.json()
-        for issue in issues:
+        for issue in r.json():
             if '[Skill Update Check]' in issue.get('title', ''):
                 return issue['number']
     return None
 
 
-def create_or_update_issue(updates):
-    """Open a GitHub Issue listing all available upstream updates."""
+def create_issue(updates):
+    """Open a GitHub Issue listing all genuine upstream updates."""
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    title = f'[Skill Update Check] Upstream updates available — {today}'
+    title = f'[Skill Update Check] New upstream sections detected — {today}'
 
     lines = [
-        '## Upstream skill updates detected',
+        '## New upstream skill sections detected',
         '',
         f'Checked on: {today}',
         '',
         '> **This is a notification only.** No files have been modified.',
-        '> Review each update and apply manually if useful.',
+        '> These are H2 sections present upstream but missing in our version.',
+        '> Review each and add to our skill if useful.',
         '',
         '---',
         '',
@@ -129,18 +144,20 @@ def create_or_update_issue(updates):
 
     for skill_path, info in updates.items():
         owner, repo, upstream_path = info['source']
+        new_sections = info['new_sections']
         custom = info.get('custom_sections', '')
 
         lines.append(f'### `{skill_path}`')
         lines.append(f'- **Source:** `{owner}/{repo}/{upstream_path}`')
-        lines.append(f'- **Our SHA:** `{info["our_sha"][:12]}`')
-        lines.append(f'- **Upstream SHA:** `{info["upstream_sha"][:12]}`')
         lines.append(f'- **Upstream URL:** https://github.com/{owner}/{repo}/blob/main/{upstream_path}')
+        lines.append(f'- **New sections ({len(new_sections)}):**')
+        for s in sorted(new_sections):
+            lines.append(f'  - `{s}`')
         if custom:
             lines.append('')
-            lines.append('**⚠️ Custom sections to preserve:**')
+            lines.append('**⚠️ Our custom sections to preserve when updating:**')
             lines.append('```')
-            lines.append(custom[:500] + ('...' if len(custom) > 500 else ''))
+            lines.append(custom[:600] + ('...' if len(custom) > 600 else ''))
             lines.append('```')
         lines.append('')
 
@@ -150,24 +167,27 @@ def create_or_update_issue(updates):
         '## How to update a skill',
         '',
         '1. Read the upstream file via GitHub MCP',
-        '2. Compare with our version',
-        '3. Apply improvements, keep custom sections',
-        '4. Close this issue after updating',
+        '2. Identify the new sections listed above',
+        '3. Add them to our SKILL.md (before the CUSTOM:START block)',
+        '4. Keep all content between CUSTOM:START and CUSTOM:END unchanged',
+        '5. Close this issue after updating',
         '',
         '_Generated by `.github/workflows/check-skill-updates.yml`_',
+        '_Comparison method: new H2 sections in upstream not present in our version_',
     ]
 
     body = '\n'.join(lines)
 
-    # Create label if it doesn't exist
+    # Ensure label exists
     requests.post(
         f'https://api.github.com/repos/{OWNER}/{REPO}/labels',
         headers=HEADERS_REPO,
-        json={'name': 'skill-update', 'color': '0075ca', 'description': 'Upstream skill update available'},
+        json={'name': 'skill-update', 'color': '0075ca',
+              'description': 'Upstream skill update available'},
         timeout=10
     )
 
-    # Close existing issue if present
+    # Close existing open issue if present
     existing = get_existing_update_issue()
     if existing:
         requests.patch(
@@ -177,7 +197,6 @@ def create_or_update_issue(updates):
             timeout=10
         )
 
-    # Open new issue
     r = requests.post(
         f'https://api.github.com/repos/{OWNER}/{REPO}/issues',
         headers=HEADERS_REPO,
@@ -191,37 +210,45 @@ def create_or_update_issue(updates):
 
 
 def main():
-    print(f'Checking {len(SKILL_SOURCES)} skills against upstream sources...')
+    print(f'Checking {len(SKILL_SOURCES)} skills for new upstream sections...')
     updates = {}
 
     for our_path, (owner, repo, upstream_path) in SKILL_SOURCES.items():
-        print(f'  Checking {our_path}...')
+        print(f'\n  Checking: {our_path}')
 
-        our_sha = get_our_sha(our_path)
-        upstream_sha = get_upstream_sha(owner, repo, upstream_path)
-
-        if our_sha is None:
-            print(f'    WARNING: our file not found: {our_path}')
-            continue
-        if upstream_sha is None:
+        upstream_text = get_file_content(owner, repo, upstream_path, HEADERS)
+        if upstream_text is None:
             print(f'    WARNING: upstream not found: {owner}/{repo}/{upstream_path}')
             continue
 
-        if our_sha != upstream_sha:
-            print(f'    UPDATE AVAILABLE: {our_path}')
-            custom = get_our_custom_sections(our_path)
+        our_text = get_file_content(OWNER, REPO, our_path, HEADERS_REPO)
+        if our_text is None:
+            print(f'    WARNING: our file not found: {our_path}')
+            continue
+
+        # Compare H2 sections (ignoring our custom sections)
+        our_text_clean = strip_custom_sections(our_text)
+        upstream_h2 = extract_h2_sections(upstream_text)
+        our_h2 = extract_h2_sections(our_text_clean)
+
+        new_sections = upstream_h2 - our_h2
+
+        if new_sections:
+            print(f'    NEW SECTIONS FOUND ({len(new_sections)}):')
+            for s in sorted(new_sections):
+                print(f'      - {s}')
+            custom = extract_custom_sections(our_text)
             updates[our_path] = {
                 'source': (owner, repo, upstream_path),
-                'our_sha': our_sha,
-                'upstream_sha': upstream_sha,
+                'new_sections': new_sections,
                 'custom_sections': custom,
             }
         else:
-            print(f'    OK: {our_path} is up to date')
+            print(f'    OK: no new sections upstream')
 
     if updates:
-        print(f'\n{len(updates)} updates available — opening GitHub Issue...')
-        create_or_update_issue(updates)
+        print(f'\n{len(updates)} skills have new upstream sections — opening Issue...')
+        create_issue(updates)
     else:
         print('\nAll skills are up to date. No issue needed.')
 
