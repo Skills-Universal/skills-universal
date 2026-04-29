@@ -14,4 +14,5 @@ Universal principles applicable to any project, language or domain.
 | documentation-and-adrs | addyosmani/agent-skills | ✅ Imported |
 | frontend-ui-engineering | addyosmani/agent-skills | ✅ Imported |
 | kaizen | sickn33/antigravity-awesome-skills | ✅ Imported |
+| token-efficiency | custom — Astronomitaly/fabrizio-marra | ✅ Created |
 | taste (UX/design) | Leonxlnx/taste-skill | 🔜 To import (lower priority) |
