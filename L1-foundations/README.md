@@ -13,5 +13,5 @@ Universal principles applicable to any project, language or domain.
 | security-and-hardening | addyosmani/agent-skills | ✅ Imported |
 | documentation-and-adrs | addyosmani/agent-skills | ✅ Imported |
 | frontend-ui-engineering | addyosmani/agent-skills | ✅ Imported |
-| taste (UX/design) | Leonxlnx/taste-skill | 🔜 To import |
-| kaizen | NeoLabHQ/kaizen | 🔜 To import |
+| kaizen | sickn33/antigravity-awesome-skills | ✅ Imported |
+| taste (UX/design) | Leonxlnx/taste-skill | 🔜 To import (lower priority) |
