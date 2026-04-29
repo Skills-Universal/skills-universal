@@ -6,6 +6,8 @@ Software development skills applicable across languages and frameworks.
 
 | Skill | Source | Status |
 |---|---|---|
+| frontend-ui-engineering | addyosmani/agent-skills | ✅ Imported |
+| taste-awwwards-design | Leonxlnx/taste-skill | ✅ Imported |
 | code-review | addyosmani/agent-skills | 🔜 To import |
 | refactoring | addyosmani/agent-skills | 🔜 To import |
 | testing-strategy | addyosmani/agent-skills | 🔜 To import |
