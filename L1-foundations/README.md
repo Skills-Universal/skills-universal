@@ -6,12 +6,12 @@ Universal principles applicable to any project, language or domain.
 
 | Skill | Source | Status |
 |---|---|---|
-| incremental-implementation | addyosmani/agent-skills | 🔜 To import |
-| debugging-and-error-recovery | addyosmani/agent-skills | 🔜 To import |
-| planning-and-task-breakdown | addyosmani/agent-skills | 🔜 To import |
-| spec-driven-development | addyosmani/agent-skills | 🔜 To import |
-| security-and-hardening | addyosmani/agent-skills | 🔜 To import |
-| documentation-and-adrs | addyosmani/agent-skills | 🔜 To import |
-| frontend-ui-engineering | addyosmani/agent-skills | 🔜 To import |
+| incremental-implementation | addyosmani/agent-skills | ✅ Imported |
+| debugging-and-error-recovery | addyosmani/agent-skills | ✅ Imported |
+| spec-driven-development | addyosmani/agent-skills | ✅ Imported |
+| planning-and-task-breakdown | addyosmani/agent-skills | ✅ Imported |
+| security-and-hardening | addyosmani/agent-skills | ✅ Imported |
+| documentation-and-adrs | addyosmani/agent-skills | ✅ Imported |
+| frontend-ui-engineering | addyosmani/agent-skills | ✅ Imported |
 | taste (UX/design) | Leonxlnx/taste-skill | 🔜 To import |
 | kaizen | NeoLabHQ/kaizen | 🔜 To import |
