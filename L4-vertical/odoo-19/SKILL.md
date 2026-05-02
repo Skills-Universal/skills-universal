@@ -37,6 +37,54 @@ Full guides available at: github.com/unclecatvn/agent-skills/skills/odoo-19.0/re
 ---
 
 <!-- CUSTOM:START — non rimuovere questo marcatore -->
+## Custom extensions — Viste XML-first: gate obbligatorio
+*Added: 2026-05-02*
+
+### Regola universale — mai viste solo nel DB
+
+**Principio:** ogni vista Odoo deve avere un `external_id` registrato in `ir.model.data`.
+Senza external ID, la vista esiste solo nel DB ed è vulnerabile a perdita ad ogni `update_module`.
+
+**Gate obbligatorio — eseguire PRIMA di toccare qualsiasi vista, esistente o nuova:**
+
+```sql
+SELECT id FROM ir_model_data
+WHERE model = 'ir.ui.view' AND res_id = <VIEW_ID>;
+```
+
+| Risultato | Azione |
+|---|---|
+| **Non vuoto** | Vista ha external ID → modificarla normalmente via XML ✅ |
+| **Vuoto** | Vista orfana → **STOP. NON modificare via SQL diretto.** |
+
+**Procedura obbligatoria per viste orfane:**
+1. Leggere `arch_db` attuale: `SELECT arch_db FROM ir_ui_view WHERE id = <ID>`
+2. Creare in XML nel modulo:
+```xml
+<record id="view_my_model_form_custom" model="ir.ui.view">
+    <field name="name">my.model.form.custom</field>
+    <field name="model">my.model</field>
+    <field name="inherit_id" ref="base_module.view_to_inherit"/>
+    <field name="arch" type="xml">
+        <!-- contenuto attuale dal DB -->
+    </field>
+</record>
+```
+3. Fare `update_module` per registrare l'external ID
+4. Verificare che `ir_model_data` ora contenga il record
+5. Solo dopo: modificare via XML normalmente
+
+**Perché questo problema esiste:**
+- Le viste create via ORM (`ir.ui.view.create()`) senza `xml_id` non hanno external ID
+- Le viste create via script SQL ovviamente nemmeno
+- `update_module` può sovrascrivere viste orfane se trova una vista XML con lo stesso `name`
+- Il Website Builder di Odoo crea spesso viste orfane — mai fidarsi che siano al sicuro
+
+**Nessuna eccezione per urgenza o rapidità.** Il costo di cristallizzare la vista è basso;
+il costo di perderla e ricostruirla è alto.
+
+---
+
 ## Custom extensions — Odoo 19 manifest best practices
 *Added: 2026-04-29*
 
@@ -126,7 +174,7 @@ task.message_post(
 )
 ```
 
-**Pattern consolidato da astro_event_stages (verificato in produzione):**
+**Pattern consolidato (verificato in produzione):**
 
 ```python
 from markupsafe import Markup
@@ -153,15 +201,8 @@ body = Markup('<p>Testo</p><ul>%s</ul>') % parte_opzionale
 - Per parti condizionali: usare `Markup('')` come fallback, non stringa vuota `''`
 - Le emoji Unicode dirette (🎯 📋) funzionano in Markup senza encoding HTML
 
-### Riferimenti Astronomitaly-specifici
-
-Pattern specifici del nostro setup non coperti dalle guide generali:
-→ `/opt/odoo19/custom/addons/ODOO19_DEV_NOTES.md` su Hetzner
-
-Casi di crisi documentati (viste orfane, noupdate, psycopg2, portal multisite):
-→ Vedi sezione ERRORI FATALI in ODOO19_DEV_NOTES.md
 <!-- CUSTOM:END -->
 
 ---
 *Source: unclecatvn/agent-skills — imported 2026-04-29*
-*Updated: 2026-04-29 — added Markup() best practice for message_post HTML*
+*Updated: 2026-05-02 — added XML-first gate for orphan views*
