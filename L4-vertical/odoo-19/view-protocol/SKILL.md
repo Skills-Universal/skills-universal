@@ -81,7 +81,7 @@ views/astro_job_call_views.xml    ← viste sul modello proprio del modulo
      VISTA: view_task_form_jobcall_tab
      SCOPO: Tab "Job Call" + alert banner + smart buttons
             sulla form task (PRENOTAZIONI PRIVATE/EVENTI)
-     EREDITA: project.task.form  →  ref="project.view_task_form2"
+     EREDITA: project.task.form  ->  ref="project.view_task_form2"
      MODULO: astro_guide_jobcall — introdotta in v19.0.1.48.0
      CAMPI CUSTOM RICHIESTI:
        x_job_call_enabled, job_call_count, job_call_state,
@@ -103,8 +103,6 @@ Per viste > 30 righe, commentare ogni xpath con `=== NOME ===`:
         </xpath>
 
         <!-- === 2. ALERT BANNER (sotto button_box) === -->
-        <!-- Alert giallo: JC mancante -->
-        <!-- Alert rosso: JC non pubblicata -->
         <xpath expr="//div[@name='button_box']" position="after">
             ...
         </xpath>
@@ -128,57 +126,41 @@ Per viste > 30 righe, commentare ogni xpath con `=== NOME ===`:
 | Version history completa | Diventa stale, duplica CHANGELOG | `CHANGELOG.md` del modulo |
 | "Viste che dipendono da questa" | Impossibile mantenere | Non documentare |
 | Tutti i campi (ovvi inclusi) | Rumore | Solo campi custom non ovvi |
-| Emoji negli attributi XML (`string=`, `name=`) | Fragile con encoding/export | Solo nel testo visibile all'utente |
+| Emoji negli attributi XML | Fragile con encoding/export | Solo nel testo visibile all'utente |
 
 ---
 
 ## 4. Index viste nel README del modulo
 
-Ogni modulo che definisce viste su **modelli nativi Odoo** (non solo i propri modelli)
-deve avere una sezione `## Viste` nel README:
+Ogni modulo che definisce viste su **modelli nativi Odoo** deve avere una sezione `## Viste` nel README.
 
-```markdown
-## Viste
-
-### Viste su modelli esterni
-
-| External ID | Modello | Tipo | Cosa aggiunge |
-|---|---|---|---|
-| `view_task_form_jobcall_tab` | `project.task` | form | Tab Job Call + alert banner + smart buttons |
-| `view_sale_order_jobcall_button` | `sale.order` | form | Smart button Job Call nel preventivo |
-| `view_project_form_jobcall_settings` | `project.project` | form | Toggle abilitazione Job Call sul progetto |
-
-### Viste sui modelli del modulo
-
-| External ID | Modello | Tipo | Note |
-|---|---|---|---|
-| `view_job_call_list` | `astro.job.call` | list | Lista principale JC |
-| `view_job_call_form` | `astro.job.call` | form | Form principale JC |
-| `view_guide_invite_list` | `astro.guide.invite` | list | Lista invite/candidature |
-| `view_guide_invite_form` | `astro.guide.invite` | form | Form invite |
-```
-
-**Perché l'index è utile:**
-- Le viste sui modelli nativi sono le più rischiose (conflitti con altri moduli)
-- In un modulo grande (astro_guide_jobcall ha 166 file) non si capisce cosa tocca cosa
-- L'index dice subito "questo modulo modifica project.task in 3 punti"
-- Utile per debugging: "questo tab non appare" → cerchi nell'index chi lo mette
-
-**Quando NON serve:**
-- Moduli piccoli (< 5 viste) che toccano solo i propri modelli
-- In quel caso basta il commento nel file XML
+Vedi esempio completo in `JOB_PORTAL_MASTER.md` sezione 7.
 
 ---
 
-## 5. Workflow di modifica vista
+## 5. VIEWS_MASTER.md — registro centrale
+
+Esiste un file centrale che mappa **tutte** le viste custom su modelli nativi:
+`/opt/odoo19/custom/addons/VIEWS_MASTER.md`
+Backup: `astrotourism/skills-astro/docs/VIEWS_MASTER.md`
+
+**Quando aggiornarlo**: ogni volta che aggiungi, modifichi o rimuovi una vista su un modello nativo Odoo.
+
+**Cosa aggiornare**: la riga della tabella del modello corretto (xpath, cosa aggiunge, controllo funzionale).
+
+---
+
+## 6. Workflow di modifica vista
 
 ```
 1. Modifica il file XML nel modulo
-2. Bump versione manifest (es. 19.0.1.80.0 → 19.0.1.81.0)
-3. button_immediate_upgrade sul modulo
-4. Verifica nel log: nessun errore RelaxNG
-5. Aggiorna CHANGELOG con descrizione modifica vista
-6. Se il README ha index viste → aggiornarlo se cambia struttura
+2. Bump versione manifest
+3. update_module
+4. Verifica log: nessun errore RelaxNG o duplicati
+5. Aggiorna CHANGELOG
+6. Aggiorna README modulo (sezione Viste) se vista su modello nativo
+7. Aggiorna VIEWS_MASTER.md       ← OBBLIGATORIO per viste su modelli nativi
+8. Commit GitHub
 ```
 
 **Mai:**
@@ -186,44 +168,40 @@ deve avere una sezione `## Viste` nel README:
 ❌ Modificare arch_db via SQL diretto
 ❌ Usare Website Builder su viste di moduli custom backend
 ❌ Creare viste via ORM senza poi cristallizzarle in XML
+❌ Dimenticare di aggiornare VIEWS_MASTER.md
 ```
 
 ---
 
-## 6. Recupero vista orfana esistente
-
-Se esiste già una vista solo-DB da cristallizzare:
+## 7. Recupero vista orfana esistente
 
 ```python
 # 1. Estrai external ID padre
 SELECT module, name FROM ir_model_data
 WHERE model = 'ir.ui.view' AND res_id = <inherit_id>;
 
-# 2. Estrai arch attuale
-SELECT arch_db FROM ir_ui_view WHERE id = <vista_id>;
-
-# 3. Backup prima di toccare
-backup_module('nome_modulo', label='pre_cristallizzazione_NNNNN')
-
-# 4. Crea file XML con il contenuto estratto
-# 5. Aggiungi al manifest in data/views
-# 6. update_module
-# 7. Verifica che ir_model_data ora abbia il record
-SELECT id FROM ir_model_data
-WHERE model = 'ir.ui.view' AND name = 'view_task_form_jobcall_tab';
+# 2. Estrai arch attuale + backup modulo
+# 3. Crea file XML con contenuto estratto + intestazione protocollo
+# 4. update_module
+# 5. Se external ID non registrato automaticamente:
+INSERT INTO ir_model_data (module, name, model, res_id, noupdate)
+VALUES ('modulo', 'view_nome', 'ir.ui.view', <id>, false);
+# 6. Aggiorna VIEWS_MASTER.md
 ```
 
 ---
 
-## 7. Checklist pre-deploy vista
+## 8. Checklist pre-deploy vista
 
 ```
-[ ] External ID presente nel record XML
+[ ] External ID nel record XML
 [ ] File XML nel manifest sotto views/
 [ ] inherit_id usa ref="module.external_id" (non eval numerico)
-[ ] Commento intestazione presente (scopo, eredita, campi custom)
-[ ] Sezioni commentate se > 30 righe
-[ ] README aggiornato se vista su modello nativo
+[ ] Commento intestazione (scopo, eredita, campi custom)
+[ ] Sezioni commentate se arch > 30 righe
+[ ] Verifica conflitti con altri moduli sullo stesso xpath (VIEWS_MASTER.md)
+[ ] README modulo aggiornato (sezione Viste)
+[ ] VIEWS_MASTER.md aggiornato
 [ ] Manifest version bumped
 [ ] CHANGELOG aggiornato
 ```
